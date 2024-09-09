@@ -34,8 +34,8 @@ export class UsersService {
   //Get all users
   async findAll() {
     try {
-      const books = await this.userModel.find();
-      return books;
+      const users = await this.userModel.find();
+      return users;
     } catch (error) {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
