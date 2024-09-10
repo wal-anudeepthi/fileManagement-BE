@@ -26,7 +26,7 @@ export class Files {
   @Prop({ type: Types.ObjectId, ref: 'Users', required: true })
   userId: Types.ObjectId;
 
-  @Prop()
+  @Prop({ default: false })
   isDeleted: boolean;
 
   @Prop({ type: Date })

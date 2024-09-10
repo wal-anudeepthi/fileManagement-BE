@@ -5,6 +5,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule } from '@nestjs/config';
 import { UsersModule } from './users/users.module';
 import { APP_PIPE } from '@nestjs/core';
+import { FilesModule } from './files/files.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { APP_PIPE } from '@nestjs/core';
     }),
     MongooseModule.forRoot(process.env.DB_URI),
     UsersModule,
+    FilesModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_PIPE, useClass: ValidationPipe }],
