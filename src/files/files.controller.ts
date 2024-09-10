@@ -22,6 +22,16 @@ import { UploadFileDto } from './dtos/upload-file.dto';
 export class FilesController {
   constructor(private filesService: FilesService) {}
 
+  @Get()
+  getFiles(@Query() query: UploadFileDto) {
+    return this.filesService.getFiles(query.userId);
+  }
+
+  @Get('/:id')
+  getFileContent(@Param('id') id: string) {
+    return this.filesService.getFile(id);
+  }
+
   @Post()
   @UseInterceptors(
     FileInterceptor('file', {
@@ -48,17 +58,10 @@ export class FilesController {
     return this.filesService.delete(id, query.userId);
   }
 
-  //Reading file by id
-  @Get('/:fileId')
-  async getFileById(@Param('fileId') fileId: string) {
-    const file = await this.filesService.getFileById(fileId);
-    return file;
-  }
-
   //Update a file content
   @Patch('/:fileId')
   async updateFile(@Body() body: any, @Param('fileId') fileId: string) {
-    const [file] = await this.getFileById(fileId);
+    const [file] = await this.filesService.getFileById(fileId);
     const fileName = file.fileName;
     const filePath = join(__dirname, '../..', 'uploads', fileName);
     try {

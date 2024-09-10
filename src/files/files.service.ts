@@ -8,6 +8,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import mongoose, { Types } from 'mongoose';
 import { Files } from 'src/schemas/files.schema';
 import { UploadFileDto } from './dtos/upload-file.dto';
+import { open } from 'node:fs/promises';
 
 @Injectable()
 export class FilesService {
@@ -18,6 +19,11 @@ export class FilesService {
   getFileById(fileId: string) {
     const objectId = new Types.ObjectId(fileId);
     return this.filesModel.find({ _id: objectId });
+  }
+
+  async getFiles(userId: string) {
+    const userIdObject = new Types.ObjectId(userId);
+    return this.filesModel.find({ userId: userIdObject, isDeleted: false });
   }
 
   updateFile(fileId: string, userId: string) {
@@ -44,6 +50,21 @@ export class FilesService {
     } catch (error) {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
+  }
+
+  async getFile(id: string) {
+    const fileIdObject = new Types.ObjectId(id);
+    const file = await this.filesModel.findOne({
+      _id: fileIdObject,
+      isDeleted: false,
+    });
+    if (!file) {
+      throw new NotFoundException('File not found');
+    }
+    const fileData = await open(`${file.filePath}/${file.fileName}`);
+    const content = await fileData.readFile();
+    await fileData.close();
+    return content.toString();
   }
 
   async delete(id: string, userId: string) {
