@@ -9,6 +9,8 @@ import mongoose, { Types } from 'mongoose';
 import { Files } from 'src/schemas/files.schema';
 import { UploadFileDto } from './dtos/upload-file.dto';
 import { open } from 'node:fs/promises';
+import { join } from 'node:path';
+import { promises as fs } from 'fs';
 
 @Injectable()
 export class FilesService {
@@ -18,21 +20,12 @@ export class FilesService {
 
   getFileById(fileId: string) {
     const objectId = new Types.ObjectId(fileId);
-    return this.filesModel.find({ _id: objectId });
+    return this.filesModel.find({ _id: objectId, isDeleted: false });
   }
 
   async getFiles(userId: string) {
     const userIdObject = new Types.ObjectId(userId);
     return this.filesModel.find({ userId: userIdObject, isDeleted: false });
-  }
-
-  updateFile(fileId: string, userId: string) {
-    const objectId = new Types.ObjectId(fileId);
-    const userObjectId = new Types.ObjectId(userId);
-    return this.filesModel.updateOne(
-      { _id: objectId },
-      { $set: { updatedBy: userObjectId } },
-    );
   }
 
   async upload(file: any, body: UploadFileDto) {
@@ -47,6 +40,27 @@ export class FilesService {
         createdBy: userIdObject,
       };
       return this.filesModel.create(uploadPayload);
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async updateFile(fileId: string, userId: string, content: string) {
+    const [file] = await this.getFileById(fileId);
+    const fileName = file.fileName;
+    const filePath = join(__dirname, '../..', 'uploads', fileName);
+    try {
+      //Check file exists or not
+      await fs.access(filePath);
+
+      // Overwriting the file content
+      await fs.writeFile(filePath, content);
+      const objectId = new Types.ObjectId(fileId);
+      const userObjectId = new Types.ObjectId(userId);
+      return this.filesModel.updateOne(
+        { _id: objectId },
+        { $set: { updatedBy: userObjectId } },
+      );
     } catch (error) {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
