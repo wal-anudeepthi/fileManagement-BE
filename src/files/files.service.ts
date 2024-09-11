@@ -56,8 +56,7 @@ export class FilesService {
         fileName: file.filename,
         filePath: file.destination,
         fileType: file.originalname?.split('.')[1],
-        // TODO: targettedStorage: body.targettedStorage,
-        targettedStorage: 'LocalStorage',
+        targettedStorage: body.targettedStorage,
         userId: userIdObject,
         createdBy: userIdObject,
       };
