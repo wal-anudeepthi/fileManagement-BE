@@ -11,6 +11,7 @@ import { UploadFileDto } from './dtos/upload-file.dto';
 import { open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promises as fs } from 'fs';
+import { Response } from 'express';
 
 @Injectable()
 export class FilesService {
@@ -94,6 +95,18 @@ export class FilesService {
         { isDeleted: true, deletedBy: userIdObject, deletedAt: new Date() },
       );
       return updatedValue;
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async downloadFile(id: string, res: Response) {
+    try {
+      const [file] = await this.getFileById(id);
+      if (!file) {
+        throw new NotFoundException('File not found!!');
+      }
+      res.download(`${file.filePath}/${file.fileName}`);
     } catch (error) {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }

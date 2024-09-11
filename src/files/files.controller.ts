@@ -9,6 +9,7 @@ import {
   UploadedFile,
   Delete,
   Query,
+  Res,
 } from '@nestjs/common';
 import { extname } from 'path';
 import { FilesService } from './files.service';
@@ -16,6 +17,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import { UploadFileDto } from './dtos/upload-file.dto';
+import { Response } from 'express';
 
 @Controller('files')
 export class FilesController {
@@ -37,7 +39,7 @@ export class FilesController {
       storage: diskStorage({
         destination: './uploads',
         filename: (req, file, callback) => {
-          const prefix = `${file.originalname.split('.')[0]}-${uuidv4()}`;
+          const prefix = `${file.originalname.split('.')[0]}-${uuidv4().split('-')[0]}`;
           const fileExt = extname(file.originalname);
           const fileName = `${prefix}${fileExt}`;
           callback(null, fileName);
@@ -61,5 +63,10 @@ export class FilesController {
   @Patch('/:fileId')
   async updateFile(@Body() body: any, @Param('fileId') fileId: string) {
     return this.filesService.updateFile(fileId, body.userId, body.content);
+  }
+
+  @Get('/download/:id')
+  async downloadFile(@Param('id') id: string, @Res() res: Response) {
+    return this.filesService.downloadFile(id, res);
   }
 }
