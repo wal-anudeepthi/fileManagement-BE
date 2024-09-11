@@ -106,6 +106,11 @@ export class FilesService {
       if (!file) {
         throw new NotFoundException('File not found!!');
       }
+      res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${file.fileName}"`,
+      );
       res.download(`${file.filePath}/${file.fileName}`);
     } catch (error) {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
