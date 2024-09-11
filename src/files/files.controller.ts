@@ -18,6 +18,7 @@ import { diskStorage } from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import { UploadFileDto } from './dtos/upload-file.dto';
 import { Response } from 'express';
+import { UpdateFileDto } from './dtos/update-file.dto';
 
 @Controller('files')
 export class FilesController {
@@ -61,8 +62,11 @@ export class FilesController {
 
   //Update a file content
   @Patch('/:fileId')
-  async updateFile(@Body() body: any, @Param('fileId') fileId: string) {
-    return this.filesService.updateFile(fileId, body.userId, body.content);
+  async updateFile(
+    @Param('fileId') fileId: string,
+    @Body() body: UpdateFileDto,
+  ) {
+    return this.filesService.updateFile(fileId, body);
   }
 
   @Get('/download/:id')

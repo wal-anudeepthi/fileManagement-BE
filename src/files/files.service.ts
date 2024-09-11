@@ -12,6 +12,7 @@ import { open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promises as fs } from 'fs';
 import { Response } from 'express';
+import { UpdateFileDto } from './dtos/update-file.dto';
 
 @Injectable()
 export class FilesService {
@@ -19,9 +20,16 @@ export class FilesService {
     @InjectModel(Files.name) private filesModel: mongoose.Model<Files>,
   ) {}
 
-  getFileById(fileId: string) {
+  async getFileById(fileId: string) {
     const objectId = new Types.ObjectId(fileId);
-    return this.filesModel.find({ _id: objectId, isDeleted: false });
+    const file = await this.filesModel.find({
+      _id: objectId,
+      isDeleted: false,
+    });
+    if (!file) {
+      throw new NotFoundException('File not found');
+    }
+    return file;
   }
 
   async getFiles(userId: string) {
@@ -29,13 +37,26 @@ export class FilesService {
     return this.filesModel.find({ userId: userIdObject, isDeleted: false });
   }
 
-  async upload(file: any, body: UploadFileDto) {
+  async getFile(id: string) {
+    try {
+      const [file] = await this.getFileById(id);
+      const fileData = await open(`${file.filePath}/${file.fileName}`);
+      const content = await fileData.readFile();
+      await fileData.close();
+      return content.toString();
+    } catch (err) {
+      throw new HttpException(err.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async upload(file: Express.Multer.File, body: UploadFileDto) {
     try {
       const userIdObject = new Types.ObjectId(body.userId);
       const uploadPayload = {
         fileName: file.filename,
         filePath: file.destination,
         fileType: file.originalname?.split('.')[1],
+        // TODO: targettedStorage: body.targettedStorage,
         targettedStorage: 'LocalStorage',
         userId: userIdObject,
         createdBy: userIdObject,
@@ -46,40 +67,26 @@ export class FilesService {
     }
   }
 
-  async updateFile(fileId: string, userId: string, content: string) {
-    const [file] = await this.getFileById(fileId);
-    const fileName = file.fileName;
-    const filePath = join(__dirname, '../..', 'uploads', fileName);
+  async updateFile(fileId: string, body: UpdateFileDto) {
     try {
+      const [file] = await this.getFileById(fileId);
+      const fileName = file.fileName;
+      const filePath = join(__dirname, '../..', 'uploads', fileName);
       //Check file exists or not
       await fs.access(filePath);
 
       // Overwriting the file content
-      await fs.writeFile(filePath, content);
+      await fs.writeFile(filePath, body.content);
       const objectId = new Types.ObjectId(fileId);
-      const userObjectId = new Types.ObjectId(userId);
-      return this.filesModel.updateOne(
+      const userObjectId = new Types.ObjectId(body.userId);
+      const updatedValue = this.filesModel.updateOne(
         { _id: objectId },
         { $set: { updatedBy: userObjectId } },
       );
+      return updatedValue;
     } catch (error) {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
-  }
-
-  async getFile(id: string) {
-    const fileIdObject = new Types.ObjectId(id);
-    const file = await this.filesModel.findOne({
-      _id: fileIdObject,
-      isDeleted: false,
-    });
-    if (!file) {
-      throw new NotFoundException('File not found');
-    }
-    const fileData = await open(`${file.filePath}/${file.fileName}`);
-    const content = await fileData.readFile();
-    await fileData.close();
-    return content.toString();
   }
 
   async delete(id: string, userId: string) {
