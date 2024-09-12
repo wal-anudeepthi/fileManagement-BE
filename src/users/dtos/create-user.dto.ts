@@ -2,7 +2,7 @@ import { IsString, IsEmail, Length, Matches } from 'class-validator';
 
 export class CreateUserDto {
   @IsString()
-  @Length(3, 10)
+  @Length(3, 20)
   name: string;
 
   @IsEmail()

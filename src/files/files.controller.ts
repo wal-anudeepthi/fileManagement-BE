@@ -9,6 +9,7 @@ import {
   UploadedFile,
   Delete,
   Query,
+  Res,
 } from '@nestjs/common';
 import { extname } from 'path';
 import { FilesService } from './files.service';
@@ -16,13 +17,16 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import { UploadFileDto } from './dtos/upload-file.dto';
+import { Response } from 'express';
+import { UpdateFileDto } from './dtos/update-file.dto';
+import { UserDto } from 'src/users/dtos/user.dto';
 
 @Controller('files')
 export class FilesController {
   constructor(private filesService: FilesService) {}
 
   @Get()
-  getFiles(@Query() query: UploadFileDto) {
+  getFiles(@Query() query: UserDto) {
     return this.filesService.getFiles(query.userId);
   }
 
@@ -37,7 +41,7 @@ export class FilesController {
       storage: diskStorage({
         destination: './uploads',
         filename: (req, file, callback) => {
-          const prefix = `${file.originalname.split('.')[0]}-${uuidv4()}`;
+          const prefix = `${file.originalname.split('.')[0]}-${uuidv4().split('-')[0]}`;
           const fileExt = extname(file.originalname);
           const fileName = `${prefix}${fileExt}`;
           callback(null, fileName);
@@ -53,13 +57,21 @@ export class FilesController {
   }
 
   @Delete('/:id')
-  deleteFile(@Param('id') id: string, @Query() query: UploadFileDto) {
+  deleteFile(@Param('id') id: string, @Query() query: UserDto) {
     return this.filesService.delete(id, query.userId);
   }
 
   //Update a file content
   @Patch('/:fileId')
-  async updateFile(@Body() body: any, @Param('fileId') fileId: string) {
-    return this.filesService.updateFile(fileId, body.userId, body.content);
+  async updateFile(
+    @Param('fileId') fileId: string,
+    @Body() body: UpdateFileDto,
+  ) {
+    return this.filesService.updateFile(fileId, body);
+  }
+
+  @Get('/download/:id')
+  async downloadFile(@Param('id') id: string, @Res() res: Response) {
+    return this.filesService.downloadFile(id, res);
   }
 }

@@ -1,9 +1,9 @@
 import { IsString } from 'class-validator';
 
-export class UploadFileDto {
+export class UpdateFileDto {
   @IsString()
   userId: string;
 
   @IsString()
-  targettedStorage: string;
+  content: string;
 }
