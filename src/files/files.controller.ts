@@ -10,11 +10,13 @@ import {
   Delete,
   Query,
   Res,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { extname } from 'path';
 import { FilesService } from './files.service';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
+import { diskStorage, memoryStorage } from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import { UploadFileDto } from './dtos/upload-file.dto';
 import { Response } from 'express';
@@ -47,6 +49,9 @@ export class FilesController {
           callback(null, fileName);
         },
       }),
+      limits: {
+        fileSize: 10 * 1024 * 1024,
+      },
     }),
   )
   uploadFile(
@@ -54,6 +59,29 @@ export class FilesController {
     @Body() body: UploadFileDto,
   ) {
     return this.filesService.upload(file, body);
+  }
+
+  @Post('aws')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: {
+        fileSize: 1 * 1024 * 1024,
+      },
+    }),
+  )
+  async uploadAwsFile(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: UploadFileDto,
+  ) {
+    if (body.targettedStorage === 'Aws') {
+      return this.filesService.uploadToS3(file, body);
+    } else {
+      throw new HttpException(
+        'Invalid targettedStorage',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
   }
 
   @Delete('/:id')
