@@ -13,12 +13,19 @@ import { join } from 'node:path';
 import { promises as fs } from 'fs';
 import { Response } from 'express';
 import { UpdateFileDto } from './dtos/update-file.dto';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { ConfigService } from '@nestjs/config';
+import { s3Client } from 'src/s3Client';
 
 @Injectable()
 export class FilesService {
+  private readonly s3Client;
   constructor(
     @InjectModel(Files.name) private filesModel: mongoose.Model<Files>,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    this.s3Client = s3Client(configService);
+  }
 
   async getFileById(fileId: string) {
     const objectId = new Types.ObjectId(fileId);
@@ -52,14 +59,29 @@ export class FilesService {
   async upload(file: Express.Multer.File, body: UploadFileDto) {
     try {
       const userIdObject = new Types.ObjectId(body.userId);
+      const targettedStorage = body.targettedStorage;
       const uploadPayload = {
         fileName: file.filename,
         filePath: file.destination,
         fileType: file.originalname?.split('.')[1],
-        targettedStorage: body.targettedStorage,
+        targettedStorage: targettedStorage,
         userId: userIdObject,
         createdBy: userIdObject,
       };
+
+      //Upload the file to S3 bucket
+      const uploadParams = {
+        Bucket: this.configService.getOrThrow('S3_BUCKET_NAME'),
+        Key: file.originalname,
+        Body: file.buffer,
+      };
+      // if (targettedStorage === 'Aws') {
+      //   await this.s3Client.send(new PutObjectCommand(uploadParams));
+      //   OPTION_1: Remove the file from local disk
+      //   fs.unlink(file.path);
+      // }
+
+      //Insert into DB
       return this.filesModel.create(uploadPayload);
     } catch (error) {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
