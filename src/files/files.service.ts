@@ -75,11 +75,9 @@ export class FilesService {
         Key: file.originalname,
         Body: file.buffer,
       };
-      // if (targettedStorage === 'Aws') {
-      //   await this.s3Client.send(new PutObjectCommand(uploadParams));
-      //   OPTION_1: Remove the file from local disk
-      //   fs.unlink(file.path);
-      // }
+      if (targettedStorage === 'Aws') {
+        await this.s3Client.send(new PutObjectCommand(uploadParams));
+      }
 
       //Insert into DB
       return this.filesModel.create(uploadPayload);
