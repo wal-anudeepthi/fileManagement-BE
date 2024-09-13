@@ -9,13 +9,14 @@ import mongoose, { Types } from 'mongoose';
 import { Files } from 'src/schemas/files.schema';
 import { UploadFileDto } from './dtos/upload-file.dto';
 import { open } from 'node:fs/promises';
-import { join } from 'node:path';
-import { promises as fs } from 'fs';
+import { extname, join } from 'node:path';
+import * as fs from 'fs';
 import { Response } from 'express';
 import { UpdateFileDto } from './dtos/update-file.dto';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { ConfigService } from '@nestjs/config';
 import { s3Client } from 'src/s3Client';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class FilesService {
@@ -60,26 +61,39 @@ export class FilesService {
     try {
       const userIdObject = new Types.ObjectId(body.userId);
       const targettedStorage = body.targettedStorage;
+      const prefix = `${file.originalname.split('.')[0]}-${uuidv4().split('-')[0]}`;
+      const fileExt = extname(file.originalname);
+      const fileName = `${prefix}${fileExt}`;
+
       const uploadPayload = {
-        fileName: file.filename,
-        filePath: file.destination,
+        fileName: fileName,
         fileType: file.originalname?.split('.')[1],
         targettedStorage: targettedStorage,
         userId: userIdObject,
         createdBy: userIdObject,
+        filePath: null,
       };
+      // //Upload file to local
+      if (targettedStorage === 'LocalStorage') {
+        const uploadPath = `${process.env.UPLOADS_FOLDER_PATH}`;
+        const filePath = join(__dirname, '../../', uploadPath, fileName);
+        uploadPayload[filePath] = filePath;
+        await fs.promises.writeFile(filePath, file.buffer);
+      }
 
       //Upload the file to S3 bucket
-      const uploadParams = {
-        Bucket: this.configService.getOrThrow('S3_BUCKET_NAME'),
-        Key: file.originalname,
-        Body: file.buffer,
-      };
       if (targettedStorage === 'Aws') {
+        const uploadPath = `s3://${process.env.S3_BUCKET_NAM}/${fileName}`;
+        uploadPayload.filePath = uploadPath;
+        const uploadParams = {
+          Bucket: this.configService.getOrThrow('S3_BUCKET_NAME'),
+          Key: fileName,
+          Body: file.buffer,
+        };
         await this.s3Client.send(new PutObjectCommand(uploadParams));
       }
 
-      //Insert into DB
+      // Insert into DB
       return this.filesModel.create(uploadPayload);
     } catch (error) {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
@@ -92,10 +106,10 @@ export class FilesService {
       const fileName = file.fileName;
       const filePath = join(__dirname, '../..', 'uploads', fileName);
       //Check file exists or not
-      await fs.access(filePath);
+      await fs.promises.access(filePath);
 
       // Overwriting the file content
-      await fs.writeFile(filePath, body.content);
+      await fs.promises.writeFile(filePath, body.content);
       const objectId = new Types.ObjectId(fileId);
       const userObjectId = new Types.ObjectId(body.userId);
       const updatedValue = this.filesModel.updateOne(

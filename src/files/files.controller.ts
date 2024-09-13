@@ -11,11 +11,8 @@ import {
   Query,
   Res,
 } from '@nestjs/common';
-import { extname } from 'path';
 import { FilesService } from './files.service';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { v4 as uuidv4 } from 'uuid';
 import { UploadFileDto } from './dtos/upload-file.dto';
 import { Response } from 'express';
 import { UpdateFileDto } from './dtos/update-file.dto';
@@ -36,19 +33,7 @@ export class FilesController {
   }
 
   @Post()
-  @UseInterceptors(
-    FileInterceptor('file', {
-      storage: diskStorage({
-        destination: './uploads',
-        filename: (req, file, callback) => {
-          const prefix = `${file.originalname.split('.')[0]}-${uuidv4().split('-')[0]}`;
-          const fileExt = extname(file.originalname);
-          const fileName = `${prefix}${fileExt}`;
-          callback(null, fileName);
-        },
-      }),
-    }),
-  )
+  @UseInterceptors(FileInterceptor('file'))
   uploadFile(
     @UploadedFile() file: Express.Multer.File,
     @Body() body: UploadFileDto,
