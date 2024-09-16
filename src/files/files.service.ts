@@ -9,13 +9,17 @@ import mongoose, { Types } from 'mongoose';
 import { Files } from 'src/schemas/files.schema';
 import { UploadFileDto } from './dtos/upload-file.dto';
 import { open } from 'node:fs/promises';
-import { join } from 'node:path';
+import { extname, join } from 'node:path';
 import { promises as fs } from 'fs';
 import { Response } from 'express';
 import { UpdateFileDto } from './dtos/update-file.dto';
+import { s3Config } from 'src/files/config/s3-config';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class FilesService {
+  private readonly s3 = s3Config;
+
   constructor(
     @InjectModel(Files.name) private filesModel: mongoose.Model<Files>,
   ) {}
@@ -49,6 +53,7 @@ export class FilesService {
     }
   }
 
+  //Upload to localStorage
   async upload(file: Express.Multer.File, body: UploadFileDto) {
     try {
       const userIdObject = new Types.ObjectId(body.userId);
@@ -60,6 +65,36 @@ export class FilesService {
         userId: userIdObject,
         createdBy: userIdObject,
       };
+      return this.filesModel.create(uploadPayload);
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  //Upload to AWS S3
+  async uploadToS3(file: Express.Multer.File, body: UploadFileDto) {
+    try {
+      const userIdObject = new Types.ObjectId(body.userId);
+      const fileName = `${file.originalname.split('.')[0]}-${uuidv4().split('-')[0]}${extname(file.originalname)}`;
+      // Define S3 upload parameters
+      const s3Params = {
+        Bucket: process.env.AWS_S3_BUCKET,
+        Key: fileName,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+      };
+      // Upload the file to S3
+      await this.s3.upload(s3Params).promise();
+      // Save file details in the database
+      const uploadPayload = {
+        fileName: fileName,
+        filePath: fileName,
+        fileType: file.mimetype.split('/')[1],
+        targettedStorage: body.targettedStorage,
+        userId: userIdObject,
+        createdBy: userIdObject,
+      };
+
       return this.filesModel.create(uploadPayload);
     } catch (error) {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
