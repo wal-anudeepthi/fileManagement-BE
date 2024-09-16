@@ -99,7 +99,11 @@ export class FilesController {
   }
 
   @Get('/download/:id')
-  async downloadFile(@Param('id') id: string, @Res() res: Response) {
-    return this.filesService.downloadFile(id, res);
+  async downloadFile(
+    @Param('id') id: string,
+    @Query('targettedStorage') targettedStorage: string,
+    @Res() res: Response,
+  ) {
+    return this.filesService.downloadFile(id, targettedStorage, res);
   }
 }
