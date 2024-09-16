@@ -46,10 +46,21 @@ export class FilesService {
   async getFile(id: string) {
     try {
       const [file] = await this.getFileById(id);
-      const fileData = await open(`${file.filePath}/${file.fileName}`);
-      const content = await fileData.readFile();
-      await fileData.close();
-      return content.toString();
+      if (file.targettedStorage === 'LocalStorage') {
+        const fileData = await open(`${file.filePath}/${file.fileName}`);
+        const content = await fileData.readFile();
+        await fileData.close();
+        return content.toString();
+      }
+      if (file.targettedStorage === 'Aws') {
+        const params = {
+          Bucket: process.env.AWS_S3_BUCKET,
+          Key: file.filePath,
+        };
+        const fileData = await this.s3.getObject(params).promise();
+        return fileData.Body.toString();
+      }
+      return true;
     } catch (err) {
       throw new HttpException(err.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -147,6 +158,13 @@ export class FilesService {
       const file = await this.filesModel.findById(fileIdObject);
       if (!file) {
         throw new NotFoundException('File not found');
+      }
+      if (file.targettedStorage === 'Aws') {
+        const params = {
+          Bucket: process.env.AWS_S3_BUCKET,
+          Key: file.filePath,
+        };
+        await this.s3.deleteObject(params).promise();
       }
       const updatedValue = await this.filesModel.updateOne(
         { _id: fileIdObject },
