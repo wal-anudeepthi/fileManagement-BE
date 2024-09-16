@@ -176,14 +176,14 @@ export class FilesService {
     }
   }
 
-  async downloadFile(id: string, targettedStorage: string, res: Response) {
+  async downloadFile(id: string, res: Response) {
     try {
       const [file] = await this.getFileById(id);
       if (!file) {
         throw new NotFoundException('File not found!!');
       }
       res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
-      if (targettedStorage === 'LocalStorage') {
+      if (file.targettedStorage === 'LocalStorage') {
         //Local Storage file download
         const filePath = path.resolve(`${file.filePath}/${file.fileName}`);
         if (!existsSync(filePath)) {
@@ -194,7 +194,7 @@ export class FilesService {
           `attachment; filename="${file.fileName}"`,
         );
         res.download(filePath);
-      } else if (targettedStorage === 'Aws') {
+      } else if (file.targettedStorage === 'Aws') {
         // AWS S3 file download
         const params = {
           Bucket: process.env.AWS_S3_BUCKET,

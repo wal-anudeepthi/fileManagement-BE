@@ -6,7 +6,4 @@ export class UpdateFileDto {
 
   @IsString()
   content: string;
-
-  @IsString()
-  targettedStorage: string;
 }
