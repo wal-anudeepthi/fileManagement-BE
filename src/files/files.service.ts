@@ -88,7 +88,7 @@ export class FilesService {
       // Save file details in the database
       const uploadPayload = {
         fileName: fileName,
-        filePath: `s3://${process.env.AWS_S3_BUCKET}/${fileName}`,
+        filePath: fileName,
         fileType: file.mimetype.split('/')[1],
         targettedStorage: body.targettedStorage,
         userId: userIdObject,
