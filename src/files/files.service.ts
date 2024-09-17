@@ -32,7 +32,7 @@ export class FilesService {
       _id: objectId,
       isDeleted: false,
     });
-    if (!file) {
+    if (!file.length) {
       throw new NotFoundException('File not found');
     }
     return file;
@@ -43,24 +43,86 @@ export class FilesService {
     return this.filesModel.find({ userId: userIdObject, isDeleted: false });
   }
 
+  async getLocalStorageFileContent(file: Files) {
+    const fileData = await open(`${file.filePath}/${file.fileName}`);
+    const content = await fileData.readFile();
+    await fileData.close();
+    return content.toString();
+  }
+
+  async getAwsFileContent(file: Files) {
+    const params = {
+      Bucket: process.env.AWS_S3_BUCKET,
+      Key: file.filePath,
+    };
+    const fileData = await this.s3.getObject(params).promise();
+    return fileData.Body.toString();
+  }
+
+  async updateLocalFile(fileName: string, content: string) {
+    const filePath = join(__dirname, '../..', 'uploads', fileName);
+    // Check if file exists
+    if (!existsSync(filePath)) {
+      throw new NotFoundException('File not found in Local storage');
+    }
+    await fs.writeFile(filePath, content);
+  }
+
+  async updateAwsFile(fileName: string, content: string) {
+    const params = {
+      Bucket: process.env.AWS_S3_BUCKET,
+      Key: fileName,
+      Body: content,
+    };
+    await this.s3.upload(params).promise();
+  }
+
+  async downloadLocalFile(file: Files, res: Response) {
+    const filePath = path.resolve(`${file.filePath}/${file.fileName}`);
+    if (!existsSync(filePath)) {
+      throw new NotFoundException('File not found on local storage!');
+    }
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${file.fileName}"`,
+    );
+    res.download(filePath);
+  }
+
+  async downloadAwsFile(file: Files, res: Response) {
+    const params = {
+      Bucket: process.env.AWS_S3_BUCKET,
+      Key: file.fileName,
+    };
+    const s3Stream = this.s3.getObject(params).createReadStream();
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${file.fileName}"`,
+    );
+    s3Stream.on('error', (error) => {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    });
+    s3Stream.pipe(res);
+  }
+
   async getFile(id: string) {
     try {
       const [file] = await this.getFileById(id);
-      if (file.targettedStorage === 'LocalStorage') {
-        const fileData = await open(`${file.filePath}/${file.fileName}`);
-        const content = await fileData.readFile();
-        await fileData.close();
-        return content.toString();
+      let res: string;
+      switch (file.targettedStorage) {
+        case 'LocalStorage':
+          res = await this.getLocalStorageFileContent(file);
+          break;
+        case 'Aws':
+          res = await this.getAwsFileContent(file);
+          break;
+        default:
+          throw new HttpException(
+            'No specified targetted storage',
+            HttpStatus.INTERNAL_SERVER_ERROR,
+          );
       }
-      if (file.targettedStorage === 'Aws') {
-        const params = {
-          Bucket: process.env.AWS_S3_BUCKET,
-          Key: file.filePath,
-        };
-        const fileData = await this.s3.getObject(params).promise();
-        return fileData.Body.toString();
-      }
-      return true;
+      return res;
     } catch (err) {
       throw new HttpException(err.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -119,25 +181,18 @@ export class FilesService {
       const [file] = await this.getFileById(fileId);
       const fileName = file.fileName;
       const targettedStorage = file.targettedStorage;
-      if (!file) {
-        throw new NotFoundException('File not found!!');
-      }
-      if (targettedStorage === 'LocalStorage') {
-        const filePath = join(__dirname, '../..', 'uploads', fileName);
-        // Check if file exists
-        if (!existsSync(filePath)) {
-          throw new NotFoundException('File not found in Local storage');
-        }
-        await fs.writeFile(filePath, body.content);
-      } else if (targettedStorage === 'Aws') {
-        // AWS S3 file update
-        const params = {
-          Bucket: process.env.AWS_S3_BUCKET,
-          Key: fileName,
-          Body: body.content,
-        };
-        // Upload new content to S3, overwriting the existing file
-        await this.s3.upload(params).promise();
+      switch (targettedStorage) {
+        case 'LocalStorage':
+          this.updateLocalFile(fileName, body.content);
+          break;
+        case 'Aws':
+          this.updateAwsFile(fileName, body.content);
+          break;
+        default:
+          throw new HttpException(
+            'No specified targetted storage',
+            HttpStatus.INTERNAL_SERVER_ERROR,
+          );
       }
       const objectId = new Types.ObjectId(fileId);
       const userObjectId = new Types.ObjectId(body.userId);
@@ -155,10 +210,7 @@ export class FilesService {
     try {
       const fileIdObject = new Types.ObjectId(id);
       const userIdObject = new Types.ObjectId(userId);
-      const file = await this.filesModel.findById(fileIdObject);
-      if (!file) {
-        throw new NotFoundException('File not found');
-      }
+      const [file] = await this.getFileById(id);
       if (file.targettedStorage === 'Aws') {
         const params = {
           Bucket: process.env.AWS_S3_BUCKET,
@@ -183,35 +235,18 @@ export class FilesService {
         throw new NotFoundException('File not found!!');
       }
       res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
-      if (file.targettedStorage === 'LocalStorage') {
-        //Local Storage file download
-        const filePath = path.resolve(`${file.filePath}/${file.fileName}`);
-        if (!existsSync(filePath)) {
-          throw new NotFoundException('File not found on local storage!');
-        }
-        res.setHeader(
-          'Content-Disposition',
-          `attachment; filename="${file.fileName}"`,
-        );
-        res.download(filePath);
-      } else if (file.targettedStorage === 'Aws') {
-        // AWS S3 file download
-        const params = {
-          Bucket: process.env.AWS_S3_BUCKET,
-          Key: file.fileName,
-        };
-        const s3Stream = this.s3.getObject(params).createReadStream();
-        res.setHeader(
-          'Content-Disposition',
-          `attachment; filename="${file.fileName}"`,
-        );
-        s3Stream.on('error', (error) => {
+      switch (file.targettedStorage) {
+        case 'LocalStorage':
+          this.downloadLocalFile(file, res);
+          break;
+        case 'Aws':
+          this.downloadAwsFile(file, res);
+          break;
+        default:
           throw new HttpException(
-            error.message,
+            'No specified targetted storage',
             HttpStatus.INTERNAL_SERVER_ERROR,
           );
-        });
-        s3Stream.pipe(res);
       }
     } catch (error) {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
