@@ -74,7 +74,7 @@ export class FilesController {
     @UploadedFile() file: Express.Multer.File,
     @Body() body: UploadFileDto,
   ) {
-    if (body.targettedStorage === 'Aws') {
+    if (body.targettedStorage === 'AWS') {
       return this.filesService.uploadToS3(file, body);
     } else {
       throw new HttpException(

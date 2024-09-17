@@ -2,9 +2,9 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Date, Types } from 'mongoose';
 
 export enum Storage {
-  LOCALSTORAGE = 'LocalStorage',
-  AWS = 'Aws',
-  AZURE = 'Azure',
+  LOCALSTORAGE = 'LOCALSTORAGE',
+  AWS = 'AWS',
+  AZURE = 'AZURE',
 }
 
 @Schema({
