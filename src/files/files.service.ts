@@ -110,10 +110,10 @@ export class FilesService {
       const [file] = await this.getFileById(id);
       let res: string;
       switch (file.targettedStorage) {
-        case 'LocalStorage':
+        case 'LOCALSTORAGE':
           res = await this.getLocalStorageFileContent(file);
           break;
-        case 'Aws':
+        case 'AWS':
           res = await this.getAwsFileContent(file);
           break;
         default:
@@ -182,10 +182,10 @@ export class FilesService {
       const fileName = file.fileName;
       const targettedStorage = file.targettedStorage;
       switch (targettedStorage) {
-        case 'LocalStorage':
+        case 'LOCALSTORAGE':
           this.updateLocalFile(fileName, body.content);
           break;
-        case 'Aws':
+        case 'AWS':
           this.updateAwsFile(fileName, body.content);
           break;
         default:
@@ -211,7 +211,7 @@ export class FilesService {
       const fileIdObject = new Types.ObjectId(id);
       const userIdObject = new Types.ObjectId(userId);
       const [file] = await this.getFileById(id);
-      if (file.targettedStorage === 'Aws') {
+      if (file.targettedStorage === 'AWS') {
         const params = {
           Bucket: process.env.AWS_S3_BUCKET,
           Key: file.filePath,
@@ -236,10 +236,10 @@ export class FilesService {
       }
       res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
       switch (file.targettedStorage) {
-        case 'LocalStorage':
+        case 'LOCALSTORAGE':
           this.downloadLocalFile(file, res);
           break;
-        case 'Aws':
+        case 'AWS':
           this.downloadAwsFile(file, res);
           break;
         default:
