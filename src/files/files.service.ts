@@ -289,7 +289,7 @@ export class FilesService {
           })
           .toBuffer();
 
-        const thumbnailFileName = `${fileName}-${size.label}.${fileExtension}`;
+        const thumbnailFileName = `${fileName}-${size.label}${fileExtension}`;
         const thumbNailImage = {
           Bucket: process.env.AWS_S3_BUCKET,
           Key: `${folderName}/${thumbnailFileName}`,
