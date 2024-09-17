@@ -17,6 +17,7 @@ import { Response } from 'express';
 import { UpdateFileDto } from './dtos/update-file.dto';
 import { s3Config } from 'src/files/config/s3-config';
 import { v4 as uuidv4 } from 'uuid';
+import * as sharp from 'sharp';
 
 @Injectable()
 export class FilesService {
@@ -248,6 +249,70 @@ export class FilesService {
             HttpStatus.INTERNAL_SERVER_ERROR,
           );
       }
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async uploadImagesToS3(file: Express.Multer.File, body: UploadFileDto) {
+    try {
+      const userIdObject = new Types.ObjectId(body.userId);
+      const originalFileName = file.originalname;
+      const fileExtension = extname(originalFileName);
+      const fileName = originalFileName.split('.').slice(0, -1).join('.');
+      const folderName = fileName;
+
+      // Define S3 upload parameters for the original image
+      const originalImage = {
+        Bucket: process.env.AWS_S3_BUCKET,
+        Key: `${folderName}/${originalFileName}`,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+      };
+
+      // Upload the original image to S3
+      await this.s3.upload(originalImage).promise();
+
+      // Define thumbnail sizes
+      const thumbnailSizes = [
+        { width: 200, label: 'small' },
+        { width: 400, label: 'medium' },
+        { width: 600, label: 'large' },
+      ];
+
+      for (const size of thumbnailSizes) {
+        const thumbnailBuffer = await sharp(file.buffer)
+          .resize({
+            width: size.width,
+            fit: 'inside',
+            withoutEnlargement: true,
+          })
+          .toBuffer();
+
+        const thumbnailFileName = `${fileName}-${size.label}.${fileExtension}`;
+        const thumbNailImage = {
+          Bucket: process.env.AWS_S3_BUCKET,
+          Key: `${folderName}/${thumbnailFileName}`,
+          Body: thumbnailBuffer,
+          ContentType: file.mimetype,
+        };
+        // Upload each thumbnail to S3
+        await this.s3.upload(thumbNailImage).promise();
+      }
+      const uploadPayload = {
+        fileName: originalFileName,
+        filePath: `${folderName}/${originalFileName}`,
+        fileType: fileExtension,
+        targettedStorage: body.targettedStorage,
+        userId: userIdObject,
+        createdBy: userIdObject,
+      };
+      await this.filesModel.create(uploadPayload);
+
+      return {
+        message: 'File uploaded successfully',
+        fileName: originalFileName,
+      };
     } catch (error) {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }

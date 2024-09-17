@@ -102,4 +102,17 @@ export class FilesController {
   async downloadFile(@Param('id') id: string, @Res() res: Response) {
     return this.filesService.downloadFile(id, res);
   }
+
+  @Post('upload-image')
+  @UseInterceptors(
+    FileInterceptor('image', {
+      limits: { fileSize: 100 * 1024 * 1024 },
+    }),
+  )
+  async uploadImage(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: UploadFileDto,
+  ) {
+    return this.filesService.uploadImagesToS3(file, body);
+  }
 }
