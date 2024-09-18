@@ -367,4 +367,24 @@ export class FilesService {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
+
+  async downloadWithSignature(id: string) {
+    try {
+      const [file] = await this.getFileById(id);
+
+      const params = {
+        Bucket: process.env.AWS_S3_BUCKET,
+        Key: file.filePath,
+        Expires: 3600,
+      };
+
+      const url = await this.s3.getSignedUrlPromise('getObject', params);
+      return { url };
+    } catch (error) {
+      throw new HttpException(
+        `failed to download file: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
 }

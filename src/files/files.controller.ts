@@ -102,4 +102,9 @@ export class FilesController {
   async downloadFile(@Param('id') id: string, @Res() res: Response) {
     return this.filesService.downloadFile(id, res);
   }
+
+  @Get('download-with-signature/:id')
+  downloadWithSignature(@Param('id') id: string) {
+    return this.filesService.downloadWithSignature(id);
+  }
 }
