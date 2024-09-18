@@ -17,6 +17,7 @@ import { Response } from 'express';
 import { UpdateFileDto } from './dtos/update-file.dto';
 import { s3Config } from 'src/files/config/s3-config';
 import { v4 as uuidv4 } from 'uuid';
+import * as sharp from 'sharp';
 
 @Injectable()
 export class FilesService {
@@ -128,8 +129,8 @@ export class FilesService {
     }
   }
 
-  //Upload to localStorage
-  async upload(file: Express.Multer.File, body: UploadFileDto) {
+  // Upload to localStorage
+  async uploadFileLocally(file: Express.Multer.File, body: UploadFileDto) {
     try {
       const userIdObject = new Types.ObjectId(body.userId);
       const uploadPayload = {
@@ -146,31 +147,145 @@ export class FilesService {
     }
   }
 
+  async uploadImageLocally(file: Express.Multer.File, body: UploadFileDto) {
+    const userIdObject = new Types.ObjectId(body.userId);
+    const originalFilePath = `${file.destination}/${file.filename}`;
+
+    const uploadPayload = {
+      fileName: file.filename,
+      filePath: file.destination,
+      fileType: file.mimetype,
+      targettedStorage: body.targettedStorage,
+      userId: userIdObject,
+      createdBy: userIdObject,
+    };
+    await this.filesModel.create(uploadPayload);
+    // Create thumbnail sizes
+    const thumbnailSizes = [
+      { wh: 200, label: 'small' },
+      { wh: 400, label: 'medium' },
+      { wh: 600, label: 'large' },
+    ];
+
+    // Generate and save thumbnails
+    const thumbnailPromises = thumbnailSizes.map(async (size) => {
+      const thumbnailBuffer = await sharp(originalFilePath)
+        .resize(size.wh, size.wh, {
+          fit: 'inside',
+        })
+        .toBuffer();
+
+      const thumbnailFileName = `${file.filename.split('.')[0]}-${size.label}${extname(file.originalname)}`;
+      const thumbnailFilePath = `${file.destination}/${thumbnailFileName}`;
+
+      // Save the thumbnail to local storage
+      fs.writeFile(thumbnailFilePath, thumbnailBuffer);
+    });
+
+    await Promise.all(thumbnailPromises);
+  }
+
+  async uploadToLocal(file: Express.Multer.File, body: UploadFileDto) {
+    try {
+      const isImage = file.mimetype.split('/')[0] === 'image';
+      if (isImage) {
+        await this.uploadImageLocally(file, body);
+      } else {
+        await this.uploadFileLocally(file, body);
+      }
+      return {
+        message: 'File uploaded successfully',
+        fileName: file.filename,
+      };
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async uploadImageToS3(
+    folderName: string,
+    originalFileName: string,
+    file: Express.Multer.File,
+    fileName: string,
+  ) {
+    // Upload original file to S3
+    const uploadOriginalImage = {
+      Bucket: process.env.AWS_S3_BUCKET,
+      Key: `${folderName}/${originalFileName}`,
+      Body: file.buffer,
+      ContentType: file.mimetype,
+    };
+    await this.s3.upload(uploadOriginalImage).promise();
+    // Generate and upload thumbnails
+    const thumbnailSizes = [
+      { wh: 200, label: 'small' },
+      { wh: 400, label: 'medium' },
+      { wh: 600, label: 'large' },
+    ];
+    const thumbnailPromises = thumbnailSizes.map(async (size) => {
+      const thumbnailBuffer = await sharp(file.buffer)
+        .resize(size.wh, size.wh, {
+          fit: 'inside',
+        })
+        .toBuffer();
+
+      const thumbnailFileName = `${fileName}-${size.label}${extname(originalFileName)}`;
+      const thumbnailParams = {
+        Bucket: process.env.AWS_S3_BUCKET,
+        Key: `${folderName}/${thumbnailFileName}`,
+        Body: thumbnailBuffer,
+        ContentType: file.mimetype,
+      };
+      return this.s3.upload(thumbnailParams).promise();
+    });
+    await Promise.all(thumbnailPromises);
+  }
+
+  async uploadFileToS3(file: Express.Multer.File) {
+    const fileName = `${file.originalname.split('.')[0]}-${uuidv4().split('-')[0]}${extname(file.originalname)}`;
+    // Define S3 upload parameters
+    const s3Params = {
+      Bucket: process.env.AWS_S3_BUCKET,
+      Key: fileName,
+      Body: file.buffer,
+      ContentType: file.mimetype,
+    };
+    // Upload the file to S3
+    await this.s3.upload(s3Params).promise();
+  }
+
   //Upload to AWS S3
   async uploadToS3(file: Express.Multer.File, body: UploadFileDto) {
     try {
+      const isImage = file.mimetype.split('/')[0] === 'image';
       const userIdObject = new Types.ObjectId(body.userId);
-      const fileName = `${file.originalname.split('.')[0]}-${uuidv4().split('-')[0]}${extname(file.originalname)}`;
-      // Define S3 upload parameters
-      const s3Params = {
-        Bucket: process.env.AWS_S3_BUCKET,
-        Key: fileName,
-        Body: file.buffer,
-        ContentType: file.mimetype,
-      };
-      // Upload the file to S3
-      await this.s3.upload(s3Params).promise();
+      const originalFileName = file.originalname;
+      const fileName = originalFileName.split('.').slice(0, -1).join('.');
+      const folderName = fileName;
+      if (isImage) {
+        await this.uploadImageToS3(
+          folderName,
+          originalFileName,
+          file,
+          fileName,
+        );
+      } else {
+        await this.uploadFileToS3(file);
+      }
       // Save file details in the database
       const uploadPayload = {
         fileName: fileName,
-        filePath: fileName,
+        filePath: isImage ? `${folderName}/${originalFileName}` : fileName,
         fileType: file.mimetype.split('/')[1],
         targettedStorage: body.targettedStorage,
         userId: userIdObject,
         createdBy: userIdObject,
       };
-
-      return this.filesModel.create(uploadPayload);
+      await this.filesModel.create(uploadPayload);
+      return {
+        message: 'File uploaded successfully',
+        fileName: fileName,
+      };
     } catch (error) {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -250,6 +365,26 @@ export class FilesService {
       }
     } catch (error) {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async downloadWithSignature(id: string) {
+    try {
+      const [file] = await this.getFileById(id);
+
+      const params = {
+        Bucket: process.env.AWS_S3_BUCKET,
+        Key: file.filePath,
+        Expires: 3600,
+      };
+
+      const url = await this.s3.getSignedUrlPromise('getObject', params);
+      return { url };
+    } catch (error) {
+      throw new HttpException(
+        `failed to download file: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 }

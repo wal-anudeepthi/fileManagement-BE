@@ -58,7 +58,7 @@ export class FilesController {
     @UploadedFile() file: Express.Multer.File,
     @Body() body: UploadFileDto,
   ) {
-    return this.filesService.upload(file, body);
+    return this.filesService.uploadToLocal(file, body);
   }
 
   @Post('aws')
@@ -66,7 +66,7 @@ export class FilesController {
     FileInterceptor('file', {
       storage: memoryStorage(),
       limits: {
-        fileSize: 1 * 1024 * 1024,
+        fileSize: 100 * 1024 * 1024,
       },
     }),
   )
@@ -101,5 +101,10 @@ export class FilesController {
   @Get('/download/:id')
   async downloadFile(@Param('id') id: string, @Res() res: Response) {
     return this.filesService.downloadFile(id, res);
+  }
+
+  @Get('download-with-signature/:id')
+  downloadWithSignature(@Param('id') id: string) {
+    return this.filesService.downloadWithSignature(id);
   }
 }
