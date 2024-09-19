@@ -274,8 +274,10 @@ export class FilesService {
       }
       // Save file details in the database
       const uploadPayload = {
-        fileName: fileName,
-        filePath: isImage ? `${folderName}/${originalFileName}` : fileName,
+        fileName: originalFileName,
+        filePath: isImage
+          ? `${folderName}/${originalFileName}`
+          : originalFileName,
         fileType: file.mimetype.split('/')[1],
         targettedStorage: body.targettedStorage,
         userId: userIdObject,
@@ -386,5 +388,51 @@ export class FilesService {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  async getLocalThumbnails(file: Files) {
+    const fileName = file.fileName.split('.')[0];
+    const ext = extname(file.fileName);
+    const sizes = ['small', 'medium', 'large'];
+    const filePath = sizes.map(
+      (size) => `http:localhost:3000/uploads/${fileName}-${size}${ext}`,
+    );
+    return filePath;
+  }
+
+  async getAwsThumbails(file: Files) {
+    const ext = extname(file.fileName);
+    const sizes = ['small', 'medium', 'large'];
+    const urls = sizes.map((size) => {
+      const fileKey = `${file.filePath.split('.')[0]}-${size}${ext}`;
+      const params = {
+        Bucket: process.env.AWS_S3_BUCKET,
+        Key: fileKey,
+        Expires: 3600,
+      };
+
+      return this.s3.getSignedUrlPromise('getObject', params);
+    });
+    const urlPromises = await Promise.all(urls);
+    return urlPromises;
+  }
+
+  async getThumbnails(id: string) {
+    const [file] = await this.getFileById(id);
+    let urls;
+    switch (file.targettedStorage) {
+      case 'LOCALSTORAGE':
+        urls = await this.getLocalThumbnails(file);
+        break;
+      case 'AWS':
+        urls = await this.getAwsThumbails(file);
+        break;
+      default:
+        throw new HttpException(
+          'No specified targetted storage',
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+    }
+    return urls;
   }
 }
