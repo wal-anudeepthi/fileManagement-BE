@@ -164,7 +164,7 @@ export class FilesService {
     const thumbnailSizes = [
       { wh: 200, label: 'small' },
       { wh: 400, label: 'medium' },
-      { wh: 600, label: 'large' },
+      { wh: 900, label: 'large' },
     ];
 
     // Generate and save thumbnails
@@ -220,7 +220,7 @@ export class FilesService {
     const thumbnailSizes = [
       { wh: 200, label: 'small' },
       { wh: 400, label: 'medium' },
-      { wh: 600, label: 'large' },
+      { wh: 900, label: 'large' },
     ];
     const thumbnailPromises = thumbnailSizes.map(async (size) => {
       const thumbnailBuffer = await sharp(file.buffer)
@@ -395,7 +395,7 @@ export class FilesService {
     const ext = extname(file.fileName);
     const sizes = ['small', 'medium', 'large'];
     const filePath = sizes.map(
-      (size) => `http://localhost:3000/uploads/${fileName}-${size}${ext}`,
+      (size) => `${process.env.IMAGE_PATH}/${fileName}-${size}${ext}`,
     );
     return filePath;
   }
@@ -437,7 +437,7 @@ export class FilesService {
   }
 
   async getLocalImages(file: Files) {
-    return `http://localhost:3000/uploads/${file.fileName}`;
+    return `${process.env.IMAGE_PATH}/${file.fileName}`;
   }
 
   async getAwsImages(file: Files) {
