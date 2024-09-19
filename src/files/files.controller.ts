@@ -112,4 +112,9 @@ export class FilesController {
   getThumbnails(@Param('id') id: string) {
     return this.filesService.getThumbnails(id);
   }
+
+  @Get('/images/:id')
+  getImages(@Param('id') id: string) {
+    return this.filesService.getImages(id);
+  }
 }

@@ -435,4 +435,38 @@ export class FilesService {
     }
     return urls;
   }
+
+  async getLocalImages(file: Files) {
+    return `http://localhost:3000/uploads/${file.fileName}`;
+  }
+
+  async getAwsImages(file: Files) {
+    // const fileKey = `${file.filePath.split('.')[0]}`;
+    const params = {
+      Bucket: process.env.AWS_S3_BUCKET,
+      Key: file.filePath,
+      Expires: 3600,
+    };
+
+    return this.s3.getSignedUrlPromise('getObject', params);
+  }
+
+  async getImages(id: string) {
+    const [file] = await this.getFileById(id);
+    let urls;
+    switch (file.targettedStorage) {
+      case 'LOCALSTORAGE':
+        urls = await this.getLocalImages(file);
+        break;
+      case 'AWS':
+        urls = await this.getAwsImages(file);
+        break;
+      default:
+        throw new HttpException(
+          'No specified targetted storage',
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+    }
+    return urls;
+  }
 }
