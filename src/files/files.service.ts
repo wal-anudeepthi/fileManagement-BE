@@ -395,7 +395,7 @@ export class FilesService {
     const ext = extname(file.fileName);
     const sizes = ['small', 'medium', 'large'];
     const filePath = sizes.map(
-      (size) => `http:localhost:3000/uploads/${fileName}-${size}${ext}`,
+      (size) => `http://localhost:3000/uploads/${fileName}-${size}${ext}`,
     );
     return filePath;
   }
