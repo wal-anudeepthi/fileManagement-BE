@@ -164,7 +164,7 @@ export class FilesService {
     const thumbnailSizes = [
       { wh: 200, label: 'small' },
       { wh: 400, label: 'medium' },
-      { wh: 600, label: 'large' },
+      { wh: 900, label: 'large' },
     ];
 
     // Generate and save thumbnails
@@ -220,7 +220,7 @@ export class FilesService {
     const thumbnailSizes = [
       { wh: 200, label: 'small' },
       { wh: 400, label: 'medium' },
-      { wh: 600, label: 'large' },
+      { wh: 900, label: 'large' },
     ];
     const thumbnailPromises = thumbnailSizes.map(async (size) => {
       const thumbnailBuffer = await sharp(file.buffer)
@@ -274,8 +274,10 @@ export class FilesService {
       }
       // Save file details in the database
       const uploadPayload = {
-        fileName: fileName,
-        filePath: isImage ? `${folderName}/${originalFileName}` : fileName,
+        fileName: originalFileName,
+        filePath: isImage
+          ? `${folderName}/${originalFileName}`
+          : originalFileName,
         fileType: file.mimetype.split('/')[1],
         targettedStorage: body.targettedStorage,
         userId: userIdObject,
@@ -386,5 +388,85 @@ export class FilesService {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  async getLocalThumbnails(file: Files) {
+    const fileName = file.fileName.split('.')[0];
+    const ext = extname(file.fileName);
+    const sizes = ['small', 'medium', 'large'];
+    const filePath = sizes.map(
+      (size) => `${process.env.IMAGE_PATH}/${fileName}-${size}${ext}`,
+    );
+    return filePath;
+  }
+
+  async getAwsThumbails(file: Files) {
+    const ext = extname(file.fileName);
+    const sizes = ['small', 'medium', 'large'];
+    const urls = sizes.map((size) => {
+      const fileKey = `${file.filePath.split('.')[0]}-${size}${ext}`;
+      const params = {
+        Bucket: process.env.AWS_S3_BUCKET,
+        Key: fileKey,
+        Expires: 3600,
+      };
+
+      return this.s3.getSignedUrlPromise('getObject', params);
+    });
+    const urlPromises = await Promise.all(urls);
+    return urlPromises;
+  }
+
+  async getThumbnails(id: string) {
+    const [file] = await this.getFileById(id);
+    let urls;
+    switch (file.targettedStorage) {
+      case 'LOCALSTORAGE':
+        urls = await this.getLocalThumbnails(file);
+        break;
+      case 'AWS':
+        urls = await this.getAwsThumbails(file);
+        break;
+      default:
+        throw new HttpException(
+          'No specified targetted storage',
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+    }
+    return urls;
+  }
+
+  async getLocalImages(file: Files) {
+    return `${process.env.IMAGE_PATH}/${file.fileName}`;
+  }
+
+  async getAwsImages(file: Files) {
+    // const fileKey = `${file.filePath.split('.')[0]}`;
+    const params = {
+      Bucket: process.env.AWS_S3_BUCKET,
+      Key: file.filePath,
+      Expires: 3600,
+    };
+
+    return this.s3.getSignedUrlPromise('getObject', params);
+  }
+
+  async getImages(id: string) {
+    const [file] = await this.getFileById(id);
+    let urls;
+    switch (file.targettedStorage) {
+      case 'LOCALSTORAGE':
+        urls = await this.getLocalImages(file);
+        break;
+      case 'AWS':
+        urls = await this.getAwsImages(file);
+        break;
+      default:
+        throw new HttpException(
+          'No specified targetted storage',
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+    }
+    return urls;
   }
 }

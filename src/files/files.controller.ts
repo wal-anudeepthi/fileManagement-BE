@@ -107,4 +107,14 @@ export class FilesController {
   downloadWithSignature(@Param('id') id: string) {
     return this.filesService.downloadWithSignature(id);
   }
+
+  @Get('thumbnails/:id')
+  getThumbnails(@Param('id') id: string) {
+    return this.filesService.getThumbnails(id);
+  }
+
+  @Get('/images/:id')
+  getImages(@Param('id') id: string) {
+    return this.filesService.getImages(id);
+  }
 }
