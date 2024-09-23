@@ -93,7 +93,7 @@ export class FilesService {
   async downloadAwsFile(file: Files, res: Response) {
     const params = {
       Bucket: process.env.AWS_S3_BUCKET,
-      Key: file.fileName,
+      Key: file.filePath,
     };
     const s3Stream = this.s3.getObject(params).createReadStream();
     res.setHeader(
@@ -214,6 +214,7 @@ export class FilesService {
       Key: `${folderName}/${originalFileName}`,
       Body: file.buffer,
       ContentType: file.mimetype,
+      ACL: 'private',
     };
     await this.s3.upload(uploadOriginalImage).promise();
     // Generate and upload thumbnails
@@ -235,20 +236,21 @@ export class FilesService {
         Key: `${folderName}/${thumbnailFileName}`,
         Body: thumbnailBuffer,
         ContentType: file.mimetype,
+        ACL: 'private',
       };
       return this.s3.upload(thumbnailParams).promise();
     });
     await Promise.all(thumbnailPromises);
   }
 
-  async uploadFileToS3(file: Express.Multer.File) {
-    const fileName = `${file.originalname.split('.')[0]}-${uuidv4().split('-')[0]}${extname(file.originalname)}`;
+  async uploadFileToS3(file: Express.Multer.File, fileName: string) {
     // Define S3 upload parameters
     const s3Params = {
       Bucket: process.env.AWS_S3_BUCKET,
       Key: fileName,
       Body: file.buffer,
       ContentType: file.mimetype,
+      ACL: 'public-read',
     };
     // Upload the file to S3
     await this.s3.upload(s3Params).promise();
@@ -259,7 +261,7 @@ export class FilesService {
     try {
       const isImage = file.mimetype.split('/')[0] === 'image';
       const userIdObject = new Types.ObjectId(body.userId);
-      const originalFileName = file.originalname;
+      const originalFileName = `${file.originalname.split('.')[0]}-${uuidv4().split('-')[0]}${extname(file.originalname)}`;
       const fileName = originalFileName.split('.').slice(0, -1).join('.');
       const folderName = fileName;
       if (isImage) {
@@ -270,7 +272,7 @@ export class FilesService {
           fileName,
         );
       } else {
-        await this.uploadFileToS3(file);
+        await this.uploadFileToS3(file, originalFileName);
       }
       // Save file details in the database
       const uploadPayload = {
