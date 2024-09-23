@@ -70,7 +70,7 @@ export class FilesController {
       },
     }),
   )
-  async uploadAwsFile(
+  uploadAwsFile(
     @UploadedFile() file: Express.Multer.File,
     @Body() body: UploadFileDto,
   ) {
@@ -91,15 +91,12 @@ export class FilesController {
 
   //Update a file content
   @Patch('/:fileId')
-  async updateFile(
-    @Param('fileId') fileId: string,
-    @Body() body: UpdateFileDto,
-  ) {
+  updateFile(@Param('fileId') fileId: string, @Body() body: UpdateFileDto) {
     return this.filesService.updateFile(fileId, body);
   }
 
   @Get('/download/:id')
-  async downloadFile(@Param('id') id: string, @Res() res: Response) {
+  downloadFile(@Param('id') id: string, @Res() res: Response) {
     return this.filesService.downloadFile(id, res);
   }
 
