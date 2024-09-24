@@ -22,20 +22,14 @@ import { UploadFileDto } from './dtos/upload-file.dto';
 import { Response } from 'express';
 import { UpdateFileDto } from './dtos/update-file.dto';
 import { UserDto } from 'src/users/dtos/user.dto';
+import { AzureService } from './azure.service';
 
 @Controller('files')
 export class FilesController {
-  constructor(private filesService: FilesService) {}
-
-  @Get()
-  getFiles(@Query() query: UserDto) {
-    return this.filesService.getFiles(query.userId);
-  }
-
-  @Get('/:id')
-  getFileContent(@Param('id') id: string) {
-    return this.filesService.getFile(id);
-  }
+  constructor(
+    private filesService: FilesService,
+    private azureService: AzureService,
+  ) {}
 
   @Post()
   @UseInterceptors(
@@ -61,7 +55,7 @@ export class FilesController {
     return this.filesService.uploadToLocal(file, body);
   }
 
-  @Post('aws')
+  @Post('cloud')
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
@@ -70,18 +64,31 @@ export class FilesController {
       },
     }),
   )
-  uploadAwsFile(
+  uploadFileToCloud(
     @UploadedFile() file: Express.Multer.File,
     @Body() body: UploadFileDto,
   ) {
-    if (body.targettedStorage === 'AWS') {
-      return this.filesService.uploadToS3(file, body);
-    } else {
-      throw new HttpException(
-        'Invalid targettedStorage',
-        HttpStatus.BAD_REQUEST,
-      );
+    let res;
+    switch (body.targettedStorage) {
+      case 'AWS':
+        res = this.filesService.uploadToS3(file, body);
+        break;
+      case 'AZURE':
+        res = this.azureService.uploadFileToAzure(file, body);
+        break;
+      default:
+        throw new HttpException(
+          'Invalid targettedStorage',
+          HttpStatus.BAD_REQUEST,
+        );
     }
+    return res;
+  }
+
+  //Update a file content
+  @Patch('/:fileId')
+  updateFile(@Param('fileId') fileId: string, @Body() body: UpdateFileDto) {
+    return this.filesService.updateFile(fileId, body);
   }
 
   @Delete('/:id')
@@ -89,10 +96,14 @@ export class FilesController {
     return this.filesService.delete(id, query.userId);
   }
 
-  //Update a file content
-  @Patch('/:fileId')
-  updateFile(@Param('fileId') fileId: string, @Body() body: UpdateFileDto) {
-    return this.filesService.updateFile(fileId, body);
+  @Get()
+  getFiles(@Query() query: UserDto) {
+    return this.filesService.getFiles(query.userId);
+  }
+
+  @Get('/:id')
+  getFileContent(@Param('id') id: string) {
+    return this.filesService.getFile(id);
   }
 
   @Get('/download/:id')
