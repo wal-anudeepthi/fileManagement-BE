@@ -21,12 +21,11 @@ export class AzureService {
   async azureInitialize() {
     this.containerClient = await getContainerClient();
   }
+
   async uploadFileToAzure(file: Express.Multer.File, body: UploadFileDto) {
-    console.log(body);
     const originalFileName = `${file.originalname.split('.')[0]}-${uuidv4().split('-')[0]}${extname(file.originalname)}`;
     const fileName = originalFileName.split('.').slice(0, -1).join('.');
     const blockBlobClient = this.containerClient.getBlockBlobClient(fileName);
-    // const fileUrl = blockBlobClient.url;
     await blockBlobClient.uploadData(file.buffer);
     const userIdObject = new Types.ObjectId(body.userId);
     const uploadPayload = {
