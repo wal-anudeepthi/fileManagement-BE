@@ -18,6 +18,7 @@ import { UpdateFileDto } from './dtos/update-file.dto';
 import { s3Config } from 'src/files/config/s3-config';
 import { v4 as uuidv4 } from 'uuid';
 import * as sharp from 'sharp';
+import { AzureService } from './azure.service';
 
 @Injectable()
 export class FilesService {
@@ -25,6 +26,7 @@ export class FilesService {
 
   constructor(
     @InjectModel(Files.name) private filesModel: mongoose.Model<Files>,
+    private azureService: AzureService,
   ) {}
 
   async getFileById(fileId: string) {
@@ -116,6 +118,9 @@ export class FilesService {
           break;
         case 'AWS':
           res = await this.getAwsFileContent(file);
+          break;
+        case 'AZURE':
+          res = await this.azureService.getFileContent(file);
           break;
         default:
           throw new HttpException(
@@ -307,6 +312,9 @@ export class FilesService {
         case 'AWS':
           this.updateAwsFile(fileName, body.content);
           break;
+        case 'AZURE':
+          this.azureService.updateAzureFile(fileName, body.content);
+          break;
         default:
           throw new HttpException(
             'No specified targetted storage',
@@ -330,12 +338,19 @@ export class FilesService {
       const fileIdObject = new Types.ObjectId(id);
       const userIdObject = new Types.ObjectId(userId);
       const [file] = await this.getFileById(id);
-      if (file.targettedStorage === 'AWS') {
-        const params = {
-          Bucket: process.env.AWS_S3_BUCKET,
-          Key: file.filePath,
-        };
-        await this.s3.deleteObject(params).promise();
+      switch (file.targettedStorage) {
+        case 'AWS':
+          const awsParams = {
+            Bucket: process.env.AWS_S3_BUCKET,
+            Key: file.filePath,
+          };
+          await this.s3.deleteObject(awsParams).promise();
+          break;
+        case 'AZURE':
+          await this.azureService.deleteFileFromAzure(file.fileName);
+          break;
+        default:
+          throw new Error('Unsupported storage type');
       }
       const updatedValue = await this.filesModel.updateOne(
         { _id: fileIdObject },
@@ -360,6 +375,9 @@ export class FilesService {
           break;
         case 'AWS':
           this.downloadAwsFile(file, res);
+          break;
+        case 'AZURE':
+          this.azureService.downloadAzureFile(file, res);
           break;
         default:
           throw new HttpException(
