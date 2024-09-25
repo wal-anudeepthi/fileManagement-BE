@@ -7,6 +7,7 @@ import { getContainerClient } from './config/azure-config';
 import { v4 as uuidv4 } from 'uuid';
 import { extname } from 'path';
 import { UploadFileDto } from './dtos/upload-file.dto';
+import { Response } from 'express';
 
 @Injectable()
 export class AzureService {
@@ -22,15 +23,15 @@ export class AzureService {
     this.containerClient = await getContainerClient();
   }
 
+  //Upload file to azure
   async uploadFileToAzure(file: Express.Multer.File, body: UploadFileDto) {
     const originalFileName = `${file.originalname.split('.')[0]}-${uuidv4().split('-')[0]}${extname(file.originalname)}`;
-    const fileName = originalFileName.split('.').slice(0, -1).join('.');
-    const blockBlobClient = this.containerClient.getBlockBlobClient(fileName);
+    const blockBlobClient = this.containerClient.getBlockBlobClient(originalFileName);
     await blockBlobClient.uploadData(file.buffer);
     const userIdObject = new Types.ObjectId(body.userId);
     const uploadPayload = {
-      fileName: fileName,
-      filePath: fileName,
+      fileName: originalFileName,
+      filePath: originalFileName,
       fileType: file.originalname?.split('.')[1],
       targettedStorage: body.targettedStorage,
       userId: userIdObject,
@@ -59,5 +60,17 @@ export class AzureService {
     );
     const downloadResponse = await blockBlobClient.downloadToBuffer(0);
     return downloadResponse.toString('utf-8');
+  }
+
+  //Download file from Azure
+  async downloadAzureFile(file: Files, res: Response) {
+    const blobClient = this.containerClient.getBlockBlobClient(file.fileName);
+    const fileBuffer = await blobClient.downloadToBuffer(0);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${file.fileName}"`,
+    );
+
+    res.send(fileBuffer);
   }
 }

@@ -376,6 +376,9 @@ export class FilesService {
         case 'AWS':
           this.downloadAwsFile(file, res);
           break;
+        case 'AZURE':
+          this.azureService.downloadAzureFile(file, res);
+          break;
         default:
           throw new HttpException(
             'No specified targetted storage',
