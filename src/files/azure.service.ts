@@ -38,4 +38,18 @@ export class AzureService {
     };
     return this.filesModel.create(uploadPayload);
   }
+
+  // Delete file from Azure
+  async deleteFileFromAzure(fileName: string) {
+    const blockBlobClient = this.containerClient.getBlockBlobClient(fileName);
+    await blockBlobClient.deleteIfExists();
+  }
+
+  // Update File in Azure
+  async updateAzureFile(fileName: string, content: string) {
+    const blockBlobClient = this.containerClient.getBlockBlobClient(fileName);
+    // Convert the string content to a Buffer
+    const contentBuffer = Buffer.from(content, 'utf-8');
+    await blockBlobClient.uploadData(contentBuffer);
+  }
 }
