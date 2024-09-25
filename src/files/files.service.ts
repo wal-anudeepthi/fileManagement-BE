@@ -26,7 +26,7 @@ export class FilesService {
 
   constructor(
     @InjectModel(Files.name) private filesModel: mongoose.Model<Files>,
-    private readonly azureService: AzureService,
+    private azureService: AzureService,
   ) {}
 
   async getFileById(fileId: string) {
@@ -118,6 +118,9 @@ export class FilesService {
           break;
         case 'AWS':
           res = await this.getAwsFileContent(file);
+          break;
+        case 'AZURE':
+          res = await this.azureService.getFileContent(file);
           break;
         default:
           throw new HttpException(

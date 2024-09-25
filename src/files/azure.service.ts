@@ -52,4 +52,12 @@ export class AzureService {
     const contentBuffer = Buffer.from(content, 'utf-8');
     await blockBlobClient.uploadData(contentBuffer);
   }
+
+  async getFileContent(file: Files) {
+    const blockBlobClient = this.containerClient.getBlockBlobClient(
+      file.filePath,
+    );
+    const downloadResponse = await blockBlobClient.downloadToBuffer(0);
+    return downloadResponse.toString('utf-8');
+  }
 }
