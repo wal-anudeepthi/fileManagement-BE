@@ -1,4 +1,8 @@
-import { ContainerClient } from '@azure/storage-blob';
+import {
+  ContainerClient,
+  BlobSASPermissions,
+  BlobSASSignatureValues,
+} from '@azure/storage-blob';
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import mongoose, { Types } from 'mongoose';
@@ -33,7 +37,13 @@ export class AzureService {
     const blockBlobClient = this.containerClient.getBlockBlobClient(
       `${folderName}/${originalFileName}`,
     );
-    const originalImageUpload = blockBlobClient.uploadData(file.buffer);
+    const contentType = file.mimetype;
+    // Upload the original image
+    const originalImageUpload = blockBlobClient.uploadData(file.buffer, {
+      blobHTTPHeaders: {
+        blobContentType: contentType,
+      },
+    });
     const thumbnailSizes = [
       { wh: 200, label: 'small' },
       { wh: 400, label: 'medium' },
@@ -48,7 +58,11 @@ export class AzureService {
       const thumbnailBlobName = `${folderName}/${fileName}-${size.label}${extname(originalFileName)}`;
       const thumbnailBlockBlobClient =
         this.containerClient.getBlockBlobClient(thumbnailBlobName);
-      return thumbnailBlockBlobClient.uploadData(thumbnailBuffer);
+      return thumbnailBlockBlobClient.uploadData(thumbnailBuffer, {
+        blobHTTPHeaders: {
+          blobContentType: contentType,
+        },
+      });
     });
     await Promise.all([originalImageUpload, ...thumbnailPromises]);
   }
@@ -79,5 +93,35 @@ export class AzureService {
       createdBy: userIdObject,
     };
     return this.filesModel.create(uploadPayload);
+  }
+
+  // Generate SAS URL for Azure Blob
+  async generateAzureSasUrl(fileName: string) {
+    const blockBlobClient = this.containerClient.getBlockBlobClient(fileName);
+    const expiresOn = new Date(new Date().valueOf() + 3600 * 1000); // Expiration time
+    const permissions = BlobSASPermissions.parse('r');
+
+    const sasOptions: BlobSASSignatureValues = {
+      expiresOn,
+      permissions,
+      containerName: this.containerClient.containerName,
+      blobName: fileName,
+    };
+
+    const sasUrl = await blockBlobClient.generateSasUrl(sasOptions);
+    return sasUrl;
+  }
+
+  // Get URLs for Azure thumbnails
+  async getAzureThumbnails(file: Files) {
+    const ext = extname(file.fileName);
+    const sizes = ['small', 'medium', 'large'];
+
+    const urls = sizes.map(async (size) => {
+      const fileKey = `${file.filePath.split('.')[0]}-${size}${ext}`;
+      return this.generateAzureSasUrl(fileKey);
+    });
+
+    return Promise.all(urls);
   }
 }

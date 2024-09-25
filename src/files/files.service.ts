@@ -18,6 +18,7 @@ import { UpdateFileDto } from './dtos/update-file.dto';
 import { s3Config } from 'src/files/config/s3-config';
 import { v4 as uuidv4 } from 'uuid';
 import * as sharp from 'sharp';
+import { AzureService } from './azure.service';
 
 @Injectable()
 export class FilesService {
@@ -25,6 +26,7 @@ export class FilesService {
 
   constructor(
     @InjectModel(Files.name) private filesModel: mongoose.Model<Files>,
+    private readonly azureService: AzureService,
   ) {}
 
   async getFileById(fileId: string) {
@@ -428,6 +430,9 @@ export class FilesService {
         break;
       case 'AWS':
         urls = await this.getAwsThumbails(file);
+        break;
+      case 'AZURE':
+        urls = await this.azureService.getAzureThumbnails(file);
         break;
       default:
         throw new HttpException(
