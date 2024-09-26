@@ -1,4 +1,8 @@
-import { ContainerClient } from '@azure/storage-blob';
+import {
+  ContainerClient,
+  BlobSASSignatureValues,
+  BlobSASPermissions,
+} from '@azure/storage-blob';
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import mongoose, { Types } from 'mongoose';
@@ -165,5 +169,22 @@ export class AzureService {
     );
 
     res.send(fileBuffer);
+  }
+
+  // Generate SAS URL for Azure Blob
+  async generateAzureSasUrl(fileName: string) {
+    const blockBlobClient = this.containerClient.getBlockBlobClient(fileName);
+    const expiresOn = new Date(new Date().valueOf() + 3600 * 1000); // Expiration time
+    const permissions = BlobSASPermissions.parse('r');
+
+    const sasOptions: BlobSASSignatureValues = {
+      expiresOn,
+      permissions,
+      containerName: this.containerClient.containerName,
+      blobName: fileName,
+    };
+
+    const sasUrl = await blockBlobClient.generateSasUrl(sasOptions);
+    return sasUrl;
   }
 }
