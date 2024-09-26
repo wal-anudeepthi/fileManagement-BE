@@ -207,6 +207,32 @@ export class FilesService {
     }
   }
 
+  async generateImageThumbnails(
+    file: Express.Multer.File,
+    originalFileName: string,
+    fileName: string,
+    folderName: string,
+  ) {
+    const thumbNails = await this.azureService.generateThumbnails(
+      file,
+      fileName,
+      originalFileName,
+      folderName,
+    );
+    const thumbnailPromises = thumbNails.map((thumbNail) => {
+      const thumbnailParams = {
+        Bucket: process.env.AWS_S3_BUCKET,
+        Key: `${thumbNail.fileName}`,
+        Body: thumbNail.buffer,
+        ContentType: file.mimetype,
+        ACL: 'private',
+      };
+      return this.s3.upload(thumbnailParams).promise();
+    });
+
+    return thumbnailPromises;
+  }
+
   async uploadImageToS3(
     folderName: string,
     originalFileName: string,
@@ -223,28 +249,12 @@ export class FilesService {
     };
     await this.s3.upload(uploadOriginalImage).promise();
     // Generate and upload thumbnails
-    const thumbnailSizes = [
-      { wh: 200, label: 'small' },
-      { wh: 400, label: 'medium' },
-      { wh: 900, label: 'large' },
-    ];
-    const thumbnailPromises = thumbnailSizes.map(async (size) => {
-      const thumbnailBuffer = await sharp(file.buffer)
-        .resize(size.wh, size.wh, {
-          fit: 'inside',
-        })
-        .toBuffer();
-
-      const thumbnailFileName = `${fileName}-${size.label}${extname(originalFileName)}`;
-      const thumbnailParams = {
-        Bucket: process.env.AWS_S3_BUCKET,
-        Key: `${folderName}/${thumbnailFileName}`,
-        Body: thumbnailBuffer,
-        ContentType: file.mimetype,
-        ACL: 'private',
-      };
-      return this.s3.upload(thumbnailParams).promise();
-    });
+    const thumbnailPromises = await this.generateImageThumbnails(
+      file,
+      originalFileName,
+      fileName,
+      folderName,
+    );
     await Promise.all(thumbnailPromises);
   }
 

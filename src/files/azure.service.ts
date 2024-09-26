@@ -1,4 +1,8 @@
-import { ContainerClient } from '@azure/storage-blob';
+import {
+  ContainerClient,
+  BlobSASSignatureValues,
+  BlobSASPermissions,
+} from '@azure/storage-blob';
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import mongoose, { Types } from 'mongoose';
@@ -7,6 +11,7 @@ import { getContainerClient } from './config/azure-config';
 import { v4 as uuidv4 } from 'uuid';
 import { extname } from 'path';
 import { UploadFileDto } from './dtos/upload-file.dto';
+import * as sharp from 'sharp';
 import { Response } from 'express';
 
 @Injectable()
@@ -23,15 +28,107 @@ export class AzureService {
     this.containerClient = await getContainerClient();
   }
 
-  //Upload file to azure
-  async uploadFileToAzure(file: Express.Multer.File, body: UploadFileDto) {
-    const originalFileName = `${file.originalname.split('.')[0]}-${uuidv4().split('-')[0]}${extname(file.originalname)}`;
-    const blockBlobClient = this.containerClient.getBlockBlobClient(originalFileName);
+  async generateThumbnails(
+    file: Express.Multer.File,
+    fileName: string,
+    originalFileName: string,
+    folderName: string,
+  ) {
+    const thumbnailSizes = [
+      { wh: 200, label: 'small' },
+      { wh: 400, label: 'medium' },
+      { wh: 900, label: 'large' },
+    ];
+    const thumbNails: { buffer: Buffer; fileName: string }[] = [];
+    await Promise.all(
+      thumbnailSizes.map(async (size) => {
+        const thumbnailBuffer = await sharp(file.buffer)
+          .resize(size.wh, size.wh, {
+            fit: 'inside',
+          })
+          .toBuffer();
+
+        const thumbnailFileName = `${folderName}/${fileName}-${size.label}${extname(originalFileName)}`;
+        thumbNails.push({
+          buffer: thumbnailBuffer,
+          fileName: thumbnailFileName,
+        });
+      }),
+    );
+    return thumbNails;
+  }
+
+  async generateImageThumbNails(
+    file: Express.Multer.File,
+    fileName: string,
+    originalFileName: string,
+    folderName: string,
+  ) {
+    const thumbNails = await this.generateThumbnails(
+      file,
+      fileName,
+      originalFileName,
+      folderName,
+    );
+    const contentType = file.mimetype;
+    const thumbnailPromises = thumbNails.map((thumbNail) => {
+      const thumbnailBlockBlobClient = this.containerClient.getBlockBlobClient(
+        thumbNail.fileName,
+      );
+      return thumbnailBlockBlobClient.uploadData(thumbNail.buffer, {
+        blobHTTPHeaders: {
+          blobContentType: contentType,
+        },
+      });
+    });
+    return thumbnailPromises;
+  }
+
+  async uploadImage(
+    file: Express.Multer.File,
+    fileName: string,
+    originalFileName: string,
+  ) {
+    const folderName = fileName;
+    const blockBlobClient = this.containerClient.getBlockBlobClient(
+      `${folderName}/${originalFileName}`,
+    );
+    const contentType = file.mimetype;
+    // Upload the original image
+    const originalImageUpload = blockBlobClient.uploadData(file.buffer, {
+      blobHTTPHeaders: {
+        blobContentType: contentType,
+      },
+    });
+    const thumbnailPromises = await this.generateImageThumbNails(
+      file,
+      fileName,
+      originalFileName,
+      folderName,
+    );
+    await Promise.all([originalImageUpload, ...thumbnailPromises]);
+  }
+
+  async uploadFile(file: Express.Multer.File, fileName: string) {
+    const blockBlobClient = this.containerClient.getBlockBlobClient(fileName);
     await blockBlobClient.uploadData(file.buffer);
+  }
+
+  async uploadFileToAzure(file: Express.Multer.File, body: UploadFileDto) {
+    const isImage = file.mimetype.split('/')[0] === 'image';
+    const originalFileName = `${file.originalname.split('.')[0]}-${uuidv4().split('-')[0]}${extname(file.originalname)}`;
+    const fileName = originalFileName.split('.').slice(0, -1).join('.');
+    if (isImage) {
+      await this.uploadImage(file, fileName, originalFileName);
+    } else {
+      await this.uploadFile(file, originalFileName);
+    }
+
     const userIdObject = new Types.ObjectId(body.userId);
+    const filePath = isImage ? `${fileName}/${originalFileName}` : fileName;
     const uploadPayload = {
       fileName: originalFileName,
-      filePath: originalFileName,
+      filePath: filePath,
       fileType: file.originalname?.split('.')[1],
       targettedStorage: body.targettedStorage,
       userId: userIdObject,
@@ -72,5 +169,22 @@ export class AzureService {
     );
 
     res.send(fileBuffer);
+  }
+
+  // Generate SAS URL for Azure Blob
+  async generateAzureSasUrl(fileName: string) {
+    const blockBlobClient = this.containerClient.getBlockBlobClient(fileName);
+    const expiresOn = new Date(new Date().valueOf() + 3600 * 1000); // Expiration time
+    const permissions = BlobSASPermissions.parse('r');
+
+    const sasOptions: BlobSASSignatureValues = {
+      expiresOn,
+      permissions,
+      containerName: this.containerClient.containerName,
+      blobName: fileName,
+    };
+
+    const sasUrl = await blockBlobClient.generateSasUrl(sasOptions);
+    return sasUrl;
   }
 }
