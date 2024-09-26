@@ -27,6 +27,57 @@ export class AzureService {
     this.containerClient = await getContainerClient();
   }
 
+  async generateThumbnails(
+    file: Express.Multer.File,
+    fileName: string,
+    originalFileName: string,
+    folderName: string,
+  ) {
+    const thumbnailSizes = [
+      { wh: 200, label: 'small' },
+      { wh: 400, label: 'medium' },
+      { wh: 900, label: 'large' },
+    ];
+    const thumbNails: { buffer: Buffer; fileName: string }[] = [];
+    await Promise.all(
+      thumbnailSizes.map(async (size) => {
+        const thumbnailBuffer = await sharp(file.buffer)
+          .resize(size.wh, size.wh, {
+            fit: 'inside',
+          })
+          .toBuffer();
+
+        const thumbnailFileName = `${folderName}/${fileName}-${size.label}${extname(originalFileName)}`;
+        thumbNails.push({
+          buffer: thumbnailBuffer,
+          fileName: thumbnailFileName,
+        });
+      }),
+    );
+    return thumbNails;
+  }
+
+  async generateImageThumbNails(
+    file: Express.Multer.File,
+    fileName: string,
+    originalFileName: string,
+    folderName: string,
+  ) {
+    const thumbNails = await this.generateThumbnails(
+      file,
+      fileName,
+      originalFileName,
+      folderName,
+    );
+    const thumbnailPromises = thumbNails.map((thumbNail) => {
+      const thumbnailBlockBlobClient = this.containerClient.getBlockBlobClient(
+        thumbNail.fileName,
+      );
+      return thumbnailBlockBlobClient.uploadData(thumbNail.buffer);
+    });
+    return thumbnailPromises;
+  }
+
   async uploadImage(
     file: Express.Multer.File,
     fileName: string,
@@ -44,26 +95,12 @@ export class AzureService {
         blobContentType: contentType,
       },
     });
-    const thumbnailSizes = [
-      { wh: 200, label: 'small' },
-      { wh: 400, label: 'medium' },
-      { wh: 900, label: 'large' },
-    ];
-    const thumbnailPromises = thumbnailSizes.map(async (size) => {
-      const thumbnailBuffer = await sharp(file.buffer)
-        .resize(size.wh, size.wh, {
-          fit: 'inside',
-        })
-        .toBuffer();
-      const thumbnailBlobName = `${folderName}/${fileName}-${size.label}${extname(originalFileName)}`;
-      const thumbnailBlockBlobClient =
-        this.containerClient.getBlockBlobClient(thumbnailBlobName);
-      return thumbnailBlockBlobClient.uploadData(thumbnailBuffer, {
-        blobHTTPHeaders: {
-          blobContentType: contentType,
-        },
-      });
-    });
+    const thumbnailPromises = await this.generateImageThumbNails(
+      file,
+      fileName,
+      originalFileName,
+      folderName,
+    );
     await Promise.all([originalImageUpload, ...thumbnailPromises]);
   }
 
