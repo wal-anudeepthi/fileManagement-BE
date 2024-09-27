@@ -456,6 +456,8 @@ export class FilesService {
         break;
       case 'AWS':
         urls = await this.getAwsThumbails(file);
+      case 'AZURE':
+        urls = await this.azureService.getAzureThumbnails(file);
         break;
       default:
         throw new HttpException(
