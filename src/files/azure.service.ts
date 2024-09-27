@@ -187,4 +187,17 @@ export class AzureService {
     const sasUrl = await blockBlobClient.generateSasUrl(sasOptions);
     return sasUrl;
   }
+
+  // Get URLs for Azure thumbnails
+  async getAzureThumbnails(file: Files) {
+    const ext = extname(file.fileName);
+    const sizes = ['small', 'medium', 'large'];
+
+    const urls = sizes.map(async (size) => {
+      const fileKey = `${file.filePath.split('.')[0]}-${size}${ext}`;
+      return this.generateAzureSasUrl(fileKey);
+    });
+
+    return Promise.all(urls);
+  }
 }
