@@ -131,7 +131,7 @@ export class AzureService {
     const uploadPayload = {
       fileName: originalFileName,
       filePath: filePath,
-      fileType: file.originalname?.split('.')[1],
+      fileType: file.mimetype,
       targettedStorage: body.targettedStorage,
       userId: userIdObject,
       createdBy: userIdObject,

@@ -141,7 +141,7 @@ export class FilesService {
       const uploadPayload = {
         fileName: file.filename,
         filePath: file.destination,
-        fileType: file.originalname?.split('.')[1],
+        fileType: file.mimetype,
         targettedStorage: body.targettedStorage,
         userId: userIdObject,
         createdBy: userIdObject,
@@ -295,7 +295,7 @@ export class FilesService {
         filePath: isImage
           ? `${folderName}/${originalFileName}`
           : originalFileName,
-        fileType: file.mimetype.split('/')[1],
+        fileType: file.mimetype,
         targettedStorage: body.targettedStorage,
         userId: userIdObject,
         createdBy: userIdObject,
