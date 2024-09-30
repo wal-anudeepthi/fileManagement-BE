@@ -141,7 +141,7 @@ export class FilesService {
       const uploadPayload = {
         fileName: file.filename,
         filePath: file.destination,
-        fileType: file.originalname?.split('.')[1],
+        fileType: file.mimetype,
         targettedStorage: body.targettedStorage,
         userId: userIdObject,
         createdBy: userIdObject,
@@ -295,7 +295,7 @@ export class FilesService {
         filePath: isImage
           ? `${folderName}/${originalFileName}`
           : originalFileName,
-        fileType: file.mimetype.split('/')[1],
+        fileType: file.mimetype,
         targettedStorage: body.targettedStorage,
         userId: userIdObject,
         createdBy: userIdObject,
@@ -359,8 +359,6 @@ export class FilesService {
         case 'AZURE':
           await this.azureService.deleteFileFromAzure(file.fileName);
           break;
-        default:
-          throw new Error('Unsupported storage type');
       }
       const updatedValue = await this.filesModel.updateOne(
         { _id: fileIdObject },
@@ -430,7 +428,7 @@ export class FilesService {
     return filePath;
   }
 
-  async getAwsThumbails(file: Files) {
+  async getAwsThumbnails(file: Files) {
     const ext = extname(file.fileName);
     const sizes = ['small', 'medium', 'large'];
     const urls = sizes.map((size) => {
@@ -455,7 +453,8 @@ export class FilesService {
         urls = await this.getLocalThumbnails(file);
         break;
       case 'AWS':
-        urls = await this.getAwsThumbails(file);
+        urls = await this.getAwsThumbnails(file);
+        break;
       case 'AZURE':
         urls = await this.azureService.getAzureThumbnails(file);
         break;
@@ -492,6 +491,9 @@ export class FilesService {
         break;
       case 'AWS':
         urls = await this.getAwsImages(file);
+        break;
+      case 'AZURE':
+        urls = await this.azureService.getAzureImage(file);
         break;
       default:
         throw new HttpException(

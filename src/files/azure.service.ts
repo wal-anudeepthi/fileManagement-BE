@@ -125,11 +125,13 @@ export class AzureService {
     }
 
     const userIdObject = new Types.ObjectId(body.userId);
-    const filePath = isImage ? `${fileName}/${originalFileName}` : fileName;
+    const filePath = isImage
+      ? `${fileName}/${originalFileName}`
+      : originalFileName;
     const uploadPayload = {
       fileName: originalFileName,
       filePath: filePath,
-      fileType: file.originalname?.split('.')[1],
+      fileType: file.mimetype,
       targettedStorage: body.targettedStorage,
       userId: userIdObject,
       createdBy: userIdObject,
@@ -161,7 +163,7 @@ export class AzureService {
 
   //Download file from Azure
   async downloadAzureFile(file: Files, res: Response) {
-    const blobClient = this.containerClient.getBlockBlobClient(file.fileName);
+    const blobClient = this.containerClient.getBlockBlobClient(file.filePath);
     const fileBuffer = await blobClient.downloadToBuffer(0);
     res.setHeader(
       'Content-Disposition',
@@ -199,5 +201,10 @@ export class AzureService {
     });
 
     return Promise.all(urls);
+  }
+
+  async getAzureImage(file: Files) {
+    const sasurl = await this.generateAzureSasUrl(file.filePath);
+    return sasurl;
   }
 }
