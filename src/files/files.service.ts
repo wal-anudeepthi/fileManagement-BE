@@ -359,8 +359,6 @@ export class FilesService {
         case 'AZURE':
           await this.azureService.deleteFileFromAzure(file.fileName);
           break;
-        default:
-          throw new Error('Unsupported storage type');
       }
       const updatedValue = await this.filesModel.updateOne(
         { _id: fileIdObject },
@@ -430,7 +428,7 @@ export class FilesService {
     return filePath;
   }
 
-  async getAwsThumbails(file: Files) {
+  async getAwsThumbnails(file: Files) {
     const ext = extname(file.fileName);
     const sizes = ['small', 'medium', 'large'];
     const urls = sizes.map((size) => {
@@ -455,7 +453,8 @@ export class FilesService {
         urls = await this.getLocalThumbnails(file);
         break;
       case 'AWS':
-        urls = await this.getAwsThumbails(file);
+        urls = await this.getAwsThumbnails(file);
+        break;
       case 'AZURE':
         urls = await this.azureService.getAzureThumbnails(file);
         break;
