@@ -200,4 +200,9 @@ export class AzureService {
 
     return Promise.all(urls);
   }
+
+  async getAzureImage(file: Files) {
+    const sasurl = await this.generateAzureSasUrl(file.filePath);
+    return sasurl;
+  }
 }

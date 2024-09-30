@@ -493,6 +493,9 @@ export class FilesService {
       case 'AWS':
         urls = await this.getAwsImages(file);
         break;
+      case 'AZURE':
+        urls = await this.azureService.getAzureImage(file);
+        break;
       default:
         throw new HttpException(
           'No specified targetted storage',
